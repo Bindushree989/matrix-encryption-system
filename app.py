@@ -1,12 +1,14 @@
 import streamlit as st
 import numpy as np
 
+MOD = 128  # ASCII range
+
 st.title("🔐 Matrix Encryption System")
-st.markdown("### Secure Text Encryption using Matrix Transformations")
+#st.markdown("### Supports letters, spaces, numbers & symbols")
 
 # ------------------ INPUT ------------------
 
-text = st.text_input("Enter Text", "HELLO")
+text = st.text_input("Enter Text", "Hello World! 123")
 
 st.write("### Enter 2x2 Key Matrix")
 a = st.number_input("a", value=3)
@@ -19,49 +21,55 @@ key = np.array([[a, b], [c, d]])
 # ------------------ FUNCTIONS ------------------
 
 def text_to_numbers(text):
-    text = text.upper().replace(" ", "")
-    return [ord(char) - 65 for char in text]
+    return [ord(char) for char in text]
 
 def numbers_to_text(nums):
-    return ''.join([chr(int(round(n)) + 65) for n in nums])
+    return ''.join([chr(int(n) % MOD) for n in nums])
 
 def create_matrix(nums, size):
     if len(nums) % size != 0:
         nums += [0] * (size - len(nums) % size)
-    return np.array(nums).reshape(-1, size).T
+    return np.array(nums, dtype=int).reshape(-1, size).T
+
+def mod_inverse(a, m):  #(a × x) % m = 1
+    t, new_t = 0, 1
+    r, new_r = m, a
+
+    while new_r != 0:
+        q = r // new_r
+        t, new_t = new_t, t - q * new_t
+        r, new_r = new_r, r - q * new_r
+
+    if r > 1:
+        return None
+    if t < 0:
+        t += m
+
+    return t
 
 def encrypt(text, key):
     nums = text_to_numbers(text)
     matrix = create_matrix(nums, key.shape[0])
-    return np.dot(key, matrix) % 26
+    return np.dot(key, matrix) % MOD
 
 def decrypt(encrypted, key, length):
-    # determinant
-    det = int(key[0][0]*key[1][1] - key[0][1]*key[1][0]) % 26
-
-    # find modular inverse of determinant
-    det_inv = None
-    for i in range(26):
-        if (det * i) % 26 == 1:
-            det_inv = i
-            break
+    det = int(key[0][0]*key[1][1] - key[0][1]*key[1][0]) % MOD
+    det_inv = mod_inverse(det, MOD)
 
     if det_inv is None:
-        return "❌ Invalid Key (Not invertible mod 26)"
+        return "❌ Invalid Key (Not invertible mod 128)"
 
-    # adjugate matrix
     adj = np.array([
         [key[1][1], -key[0][1]],
         [-key[1][0], key[0][0]]
     ])
 
-    key_inv = (det_inv * adj) % 26
-
-    decrypted = np.dot(key_inv, encrypted) % 26
+    key_inv = (det_inv * adj) % MOD
+    decrypted = np.dot(key_inv, encrypted) % MOD
 
     return numbers_to_text(decrypted.T.flatten())[:length]
 
-# ------------------ SESSION STORAGE ------------------
+# ------------------ SESSION ------------------
 
 if "encrypted_data" not in st.session_state:
     st.session_state.encrypted_data = None
@@ -70,7 +78,6 @@ if "encrypted_data" not in st.session_state:
 
 col1, col2 = st.columns(2)
 
-# Encrypt Button
 with col1:
     if st.button("🔒 Encrypt"):
         encrypted = encrypt(text, key)
@@ -79,7 +86,6 @@ with col1:
         st.write("### 🔢 Encrypted Matrix")
         st.write(encrypted)
 
-# Decrypt Button
 with col2:
     if st.button("🔓 Decrypt"):
         if st.session_state.encrypted_data is not None:
@@ -93,4 +99,4 @@ with col2:
 # ------------------ FOOTER ------------------
 
 st.markdown("---")
-st.caption("Built using Linear Algebra (Matrix Transformations)")
+st.caption("Now supports full ASCII (spaces, symbols, numbers)")
